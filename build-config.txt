@@ -1,3 +1,11 @@
 # Build Configuration
-# Set to true to enable automated builds, false to disable
+# Set to true to enable, false to disable
+
 ENABLED=false
+
+# Platform toggles
+ANDROID=true
+WINDOWS=true
+LINUX=true
+MAC=true
+IOS=true

@@ -21,6 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
+      android: ${{ steps.check.outputs.android }}
+      windows: ${{ steps.check.outputs.windows }}
+      linux: ${{ steps.check.outputs.linux }}
+      mac: ${{ steps.check.outputs.mac }}
+      ios: ${{ steps.check.outputs.ios }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,13 +35,36 @@ jobs:
         run: |
           if [ ! -f "build-config.txt" ]; then
             echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "android=false" >> $GITHUB_OUTPUT
+            echo "windows=false" >> $GITHUB_OUTPUT
+            echo "linux=false" >> $GITHUB_OUTPUT
+            echo "mac=false" >> $GITHUB_OUTPUT
+            echo "ios=false" >> $GITHUB_OUTPUT
             echo "⚠️ build-config.txt not found, build disabled"
             exit 0
           fi
 
-          VALUE=$(grep -oP '(?<=ENABLED=).*' build-config.txt | tr -d '[:space:]')
-          echo "enabled=$VALUE" >> $GITHUB_OUTPUT
-          echo "Build config: ENABLED=$VALUE"
+          ENABLED=$(grep -oP '(?<=ENABLED=).*' build-config.txt | tr -d '[:space:]')
+          ANDROID=$(grep -oP '(?<=ANDROID=).*' build-config.txt | tr -d '[:space:]')
+          WINDOWS=$(grep -oP '(?<=WINDOWS=).*' build-config.txt | tr -d '[:space:]')
+          LINUX=$(grep -oP '(?<=LINUX=).*' build-config.txt | tr -d '[:space:]')
+          MAC=$(grep -oP '(?<=MAC=).*' build-config.txt | tr -d '[:space:]')
+          IOS=$(grep -oP '(?<=IOS=).*' build-config.txt | tr -d '[:space:]')
+
+          echo "enabled=$ENABLED" >> $GITHUB_OUTPUT
+          echo "android=$ANDROID" >> $GITHUB_OUTPUT
+          echo "windows=$WINDOWS" >> $GITHUB_OUTPUT
+          echo "linux=$LINUX" >> $GITHUB_OUTPUT
+          echo "mac=$MAC" >> $GITHUB_OUTPUT
+          echo "ios=$IOS" >> $GITHUB_OUTPUT
+
+          echo "Build Config:"
+          echo "  ENABLED=$ENABLED"
+          echo "  ANDROID=$ANDROID"
+          echo "  WINDOWS=$WINDOWS"
+          echo "  LINUX=$LINUX"
+          echo "  MAC=$MAC"
+          echo "  IOS=$IOS"
 
   build:
     needs: check-config
@@ -48,31 +76,42 @@ jobs:
             os: ubuntu-latest
             export_preset: Linux
             artifact_ext: .x86_64
+            enabled: ${{ needs.check-config.outputs.linux }}
           - platform: windows
             os: ubuntu-latest
             export_preset: Windows
             artifact_ext: .exe
+            enabled: ${{ needs.check-config.outputs.windows }}
           - platform: android
             os: ubuntu-latest
             export_preset: Android
             artifact_ext: .apk
+            enabled: ${{ needs.check-config.outputs.android }}
           - platform: mac
             os: macos-latest
             export_preset: macOS
             artifact_ext: .zip
+            enabled: ${{ needs.check-config.outputs.mac }}
           - platform: ios
             os: macos-latest
             export_preset: iOS
             artifact_ext: .ipa
+            enabled: ${{ needs.check-config.outputs.ios }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    continue-on-error: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check platform enabled
+        if: matrix.enabled != 'true'
+        run: exit 0
+
       - name: Setup Godot
+        if: matrix.enabled == 'true'
         uses: chickensoft-games/setup-godot@v1
         with:
           version: ${{ env.GODOT_VERSION }}
@@ -80,13 +119,13 @@ jobs:
           include-templates: true
 
       - name: Setup Android (Android only)
-        if: matrix.platform == 'android'
+        if: matrix.platform == 'android' && matrix.enabled == 'true'
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r23c
 
       - name: Setup Android Keystore (Android only)
-        if: matrix.platform == 'android'
+        if: matrix.platform == 'android' && matrix.enabled == 'true'
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android.keystore
           echo "android/keystore/release=\"android.keystore\"" >> project.godot
@@ -96,15 +135,18 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
       - name: Create Export Directory
+        if: matrix.enabled == 'true'
         run: mkdir -p build/${{ matrix.platform }}
 
       - name: Export Game
+        if: matrix.enabled == 'true'
         run: |
           godot --headless --export-release "${{ matrix.export_preset }}" build/${{ matrix.platform }}/${{ env.GAME_NAME }}-${{ matrix.platform }}${{ matrix.artifact_ext }}
         env:
           GODOT_VERSION: ${{ env.GODOT_VERSION }}
 
       - name: Upload Artifact
+        if: matrix.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.platform }}
@@ -129,6 +171,10 @@ jobs:
           mkdir -p output
           for dir in builds/*/; do
             platform=$(basename "$dir")
+            if [ -z "$(ls -A "$dir")" ]; then
+              echo "Skipping empty directory: $platform"
+              continue
+            fi
             echo "Compressing $platform..."
             7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on \
               "output/${{ env.GAME_NAME }}-${platform}.7z" \
@@ -148,6 +194,11 @@ jobs:
           if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
             echo "Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets must be set"
             exit 1
+          fi
+
+          if [ -z "$(ls -A output/*.7z 2>/dev/null)" ]; then
+            echo "No builds to send"
+            exit 0
           fi
 
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
