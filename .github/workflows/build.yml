@@ -124,13 +124,10 @@ jobs:
         with:
           ndk-version: r23c
 
-      - name: Setup Android Keystore (Android only)
+      - name: Generate debug keystore
         if: matrix.platform == 'android' && matrix.enabled == 'true'
         run: |
-          keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000 -keystore android.keystore -storepass mypassword -keypass mypassword -dname "CN=Debug"
-          echo "android/keystore/debug=\"android.keystore\"" >> project.godot
-          echo "android/keystore/debug_user=\"mygame\"" >> project.godot
-          echo "android/keystore/debug_password=\"mypassword\"" >> project.godot
+          keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000 -storepass mypassword -keypass mypassword -dname "CN=Debug"
 
       - name: Create Export Directory
         if: matrix.enabled == 'true'
