@@ -156,6 +156,7 @@ jobs:
   compress-and-send:
     needs: [check-config, build]
     if: always() && needs.check-config.outputs.enabled == 'true' && needs.build.result != 'skipped'
+    runs-on: ubuntu-latest
 
     steps:
       - name: Download All Builds
