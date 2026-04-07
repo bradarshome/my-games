@@ -127,7 +127,7 @@ jobs:
       - name: Generate debug keystore
         if: matrix.platform == 'android' && matrix.enabled == 'true'
         run: |
-          keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000 -storepass mypassword -keypass mypassword -dname "CN=Debug"
+          keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000 -storepass mypassword -keypass mypassword -dname "CN=Debug,OU=Debug,O=Debug,L=Debug,ST=Debug,C=US" -keyalg RSA -sigalg SHA256withRSA
 
       - name: Create Export Directory
         if: matrix.enabled == 'true'
