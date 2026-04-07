@@ -11,11 +11,11 @@ Kamu perlu menambahkan secrets berikut di **Settings > Secrets and variables > A
 
 ## Optional Secrets (untuk Android build)
 
-| Secret Name | Deskripsi | Cara Mendapatkan |
-|-------------|-----------|------------------|
-| `ANDROID_KEYSTORE_BASE64` | Keystore dalam base64 | `base64 -i your-keystore.jks` |
-| `ANDROID_KEYSTORE_USER` | Alias keystore | Saat membuat keystore |
-| `ANDROID_KEYSTORE_PASSWORD` | Password keystore | Saat membuat keystore |
+| Secret Name | Value | Deskripsi |
+|-------------|-------|-----------|
+| `ANDROID_KEYSTORE_BASE64` | (hasil base64) | Isi lengkap dari `base64 -i mygame.keystore` |
+| `ANDROID_KEYSTORE_USER` | `mygame` | Alias yang kamu buat saat generate keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | (password kamu) | Password yang kamu input saat generate |
 
 ## Cara Setup BotFather
 
@@ -29,9 +29,49 @@ Kamu perlu menambahkan secrets berikut di **Settings > Secrets and variables > A
 
 ## Cara Setup Android Keystore (opsional, kalau mau build APK)
 
+### 1. Buat keystore baru
+
 ```bash
-keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000
-base64 -i android.keystore > keystore_base64.txt
+keytool -genkey -v -keystore mygame.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-Lalu copy isi `keystore_base64.txt` ke secret `ANDROID_KEYSTORE_BASE64`.
+Nanti akan diminta input:
+- **Keystore password**: → ini jadi `ANDROID_KEYSTORE_PASSWORD`
+- **What is your first and last name?**: Skip (enter)
+- **What is the name of your organizational unit?**: Skip (enter)
+- **What is the name of your organization?**: Skip (enter)
+- **What is the name of your City or Locality?**: Skip (enter)
+- **What is the name of your State or Province?**: Skip (enter)
+- **What is the two-letter country code for this unit?**: isi `ID` (Indonesia)
+- **Alias password**: Sama dengan keystore password
+
+### 2. Convert ke base64
+
+```bash
+base64 -i mygame.keystore
+```
+
+Copy hasilnya (satu baris panjang) ke secret `ANDROID_KEYSTORE_BASE64`.
+
+### 3. Simpan secrets
+
+| Secret | Value |
+|--------|-------|
+| `ANDROID_KEYSTORE_BASE64` | Hasil base64 dari command di atas |
+| `ANDROID_KEYSTORE_USER` | `mygame` (alias yang kamu buat) |
+| `ANDROID_KEYSTORE_PASSWORD` | Password yang kamu input |
+
+### 4. Verifikasi keystore (opsional)
+
+```bash
+keytool -list -keystore mygame.keystore
+```
+
+Akan show informasi:
+```
+Alias name: mygame
+Creation date: ...
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+...
+```
