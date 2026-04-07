@@ -4,8 +4,8 @@
 ENABLED=true
 
 # Platform toggles
-ANDROID=true
-WINDOWS=false
-LINUX=false
+ANDROID=false
+WINDOWS=true
+LINUX=true
 MAC=false
 IOS=false
