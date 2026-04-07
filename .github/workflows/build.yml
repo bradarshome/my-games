@@ -141,7 +141,8 @@ jobs:
       - name: Export Game
         if: matrix.enabled == 'true'
         run: |
-          godot --headless --export-release "${{ matrix.export_preset }}" build/${{ matrix.platform }}/${{ env.GAME_NAME }}-${{ matrix.platform }}${{ matrix.artifact_ext }}
+          cd project
+          godot --headless --export-release "${{ matrix.export_preset }}" ../build/${{ matrix.platform }}/${{ env.GAME_NAME }}-${{ matrix.platform }}${{ matrix.artifact_ext }}
         env:
           GODOT_VERSION: ${{ env.GODOT_VERSION }}
 
