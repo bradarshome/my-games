@@ -127,17 +127,10 @@ jobs:
       - name: Setup Android Keystore (Android only)
         if: matrix.platform == 'android' && matrix.enabled == 'true'
         run: |
-          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android.keystore
-            echo "android/keystore/debug=\"android.keystore\"" >> project.godot
-            echo "android/keystore/debug_user=\"${{ secrets.ANDROID_KEYSTORE_USER }}\"" >> project.godot
-            echo "android/keystore/debug_password=\"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}\"" >> project.godot
-            echo "android/keystore/release=\"android.keystore\"" >> project.godot
-            echo "android/keystore/release_user=\"${{ secrets.ANDROID_KEYSTORE_USER }}\"" >> project.godot
-            echo "android/keystore/release_password=\"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}\"" >> project.godot
-          fi
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          keytool -genkey -v -keystore android.keystore -alias mygame -keyalg RSA -keysize 2048 -validity 10000 -keystore android.keystore -storepass mypassword -keypass mypassword -dname "CN=Debug"
+          echo "android/keystore/debug=\"android.keystore\"" >> project.godot
+          echo "android/keystore/debug_user=\"mygame\"" >> project.godot
+          echo "android/keystore/debug_password=\"mypassword\"" >> project.godot
 
       - name: Create Export Directory
         if: matrix.enabled == 'true'
