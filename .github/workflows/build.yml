@@ -1,0 +1,174 @@
+name: Build & Deploy to Telegram
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: false
+        default: 'dev'
+
+env:
+  GODOT_VERSION: 4.3
+  GAME_NAME: pixel-puzzle-arcade
+
+jobs:
+  check-config:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check build config
+        id: check
+        run: |
+          if [ ! -f "build-config.txt" ]; then
+            echo "enabled=false" >> $GITHUB_OUTPUT
+            echo "⚠️ build-config.txt not found, build disabled"
+            exit 0
+          fi
+
+          VALUE=$(grep -oP '(?<=ENABLED=).*' build-config.txt | tr -d '[:space:]')
+          echo "enabled=$VALUE" >> $GITHUB_OUTPUT
+          echo "Build config: ENABLED=$VALUE"
+
+  build:
+    needs: check-config
+    if: needs.check-config.outputs.enabled == 'true'
+    strategy:
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+            export_preset: Linux
+            artifact_ext: .x86_64
+          - platform: windows
+            os: ubuntu-latest
+            export_preset: Windows
+            artifact_ext: .exe
+          - platform: android
+            os: ubuntu-latest
+            export_preset: Android
+            artifact_ext: .apk
+          - platform: mac
+            os: macos-latest
+            export_preset: macOS
+            artifact_ext: .zip
+          - platform: ios
+            os: macos-latest
+            export_preset: iOS
+            artifact_ext: .ipa
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v1
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+          include-templates: true
+
+      - name: Setup Android (Android only)
+        if: matrix.platform == 'android'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r23c
+
+      - name: Setup Android Keystore (Android only)
+        if: matrix.platform == 'android'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android.keystore
+          echo "android/keystore/release=\"android.keystore\"" >> project.godot
+          echo "android/keystore/release_user=\"${{ secrets.ANDROID_KEYSTORE_USER }}\"" >> project.godot
+          echo "android/keystore/release_password=\"${{ secrets.ANDROID_KEYSTORE_PASSWORD }}\"" >> project.godot
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+
+      - name: Create Export Directory
+        run: mkdir -p build/${{ matrix.platform }}
+
+      - name: Export Game
+        run: |
+          godot --headless --export-release "${{ matrix.export_preset }}" build/${{ matrix.platform }}/${{ env.GAME_NAME }}-${{ matrix.platform }}${{ matrix.artifact_ext }}
+        env:
+          GODOT_VERSION: ${{ env.GODOT_VERSION }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.platform }}
+          path: build/${{ matrix.platform }}/
+          retention-days: 5
+
+  compress-and-send:
+    needs: [check-config, build]
+    if: always() && needs.check-config.outputs.enabled == 'true' && needs.build.result != 'skipped'
+
+    steps:
+      - name: Download All Builds
+        uses: actions/download-artifact@v4
+        with:
+          path: builds/
+
+      - name: Install 7-Zip
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full
+
+      - name: Compress Builds (Ultra)
+        run: |
+          mkdir -p output
+          for dir in builds/*/; do
+            platform=$(basename "$dir")
+            echo "Compressing $platform..."
+            7z a -t7z -m0=lzma2 -mx=9 -mfb=64 -md=64m -ms=on \
+              "output/${{ env.GAME_NAME }}-${platform}.7z" \
+              "$dir"
+          done
+          ls -lh output/
+
+      - name: Send to Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GAME_NAME: ${{ env.GAME_NAME }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          if [ -z "$BOT_TOKEN" ] || [ -z "$CHAT_ID" ]; then
+            echo "Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets must be set"
+            exit 1
+          fi
+
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          COMMIT_MSG="${{ github.event.head_commit.message || 'Manual build' }}"
+
+          for file in output/*.7z; do
+            filename=$(basename "$file")
+            filesize=$(du -h "$file" | cut -f1)
+
+            echo "Sending $filename ($filesize) to Telegram..."
+
+            CAPTION="🎮 *${GAME_NAME}* - Build ${VERSION}\n\n📦 *${filename}*\n📊 Size: ${filesize}\n💬 Commit: ${COMMIT_MSG}\n🔗 Build: [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+
+            curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
+              -F chat_id="${CHAT_ID}" \
+              -F document="@${file}" \
+              -F caption="$CAPTION" \
+              -F parse_mode="Markdown"
+
+            echo "✅ Sent $filename"
+            sleep 2
+          done
+
+          echo "🎉 All builds sent to Telegram!"
