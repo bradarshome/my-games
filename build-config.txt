@@ -1,7 +1,7 @@
 # Build Configuration
 # Set to true to enable, false to disable
 
-ENABLED=false
+ENABLED=true
 
 # Platform toggles
 ANDROID=true
