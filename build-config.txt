@@ -5,7 +5,7 @@ ENABLED=true
 
 # Platform toggles
 ANDROID=true
-WINDOWS=true
-LINUX=true
-MAC=true
-IOS=true
+WINDOWS=false
+LINUX=false
+MAC=false
+IOS=false
