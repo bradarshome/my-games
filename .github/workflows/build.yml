@@ -13,7 +13,7 @@ on:
         default: 'dev'
 
 env:
-  GODOT_VERSION: 4.3
+  GODOT_VERSION: 4.3.0
   GAME_NAME: pixel-puzzle-arcade
 
 jobs:
