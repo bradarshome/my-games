@@ -17,12 +17,12 @@ func _input(event):
 
 func drop_ball():
 	var ball = CharacterBody2D.new()
-	ball.set_script(preload("res://scripts/physics_ball.gd"))
 	ball.position = Vector2(randf_range(50, 400), 80)
 	
 	var sprite = ColorRect.new()
 	sprite.color = Color("#ff6b6b")
 	sprite.size = Vector2(24, 24)
+	sprite.set_anchors_preset(Control.PRESET_CENTER)
 	ball.add_child(sprite)
 	
 	var collider = CollisionShape2D.new()
@@ -31,6 +31,7 @@ func drop_ball():
 	collider.shape = shape
 	ball.add_child(collider)
 	
+	ball.set_script(null)  # No separate script needed
 	add_child(ball)
 	balls.append(ball)
 
