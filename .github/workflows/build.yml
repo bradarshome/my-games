@@ -182,6 +182,17 @@ jobs:
           done
           ls -lh output/
 
+      - name: Get Last Commit Info
+        id: commit-info
+        run: |
+          LAST_COMMIT=$(git log -1 --format='%H')
+          LAST_COMMIT_MSG=$(git log -1 --format='%s')
+          LAST_COMMIT_AUTHOR=$(git log -1 --format='%an')
+          LAST_COMMIT_DATE=$(git log -1 --format='%ai')
+          echo "last_commit=$LAST_COMMIT" >> $GITHUB_OUTPUT
+          echo "last_commit_msg=$LAST_COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "last_commit_author=$LAST_COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+
       - name: Send to Telegram
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -201,8 +212,13 @@ jobs:
             exit 0
           fi
 
+          LAST_COMMIT="${{ steps.commit-info.outputs.last_commit }}"
+          LAST_COMMIT_MSG="${{ steps.commit-info.outputs.last_commit_msg }}"
+          LAST_COMMIT_AUTHOR="${{ steps.commit-info.outputs.last_commit_author }}"
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
-          COMMIT_MSG="${{ github.event.head_commit.message || 'Manual build' }}"
+          WORKFLOW_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          TIMESTAMP=$(TZ='Asia/Makassar' date '+%Y-%m-%d %H:%M:%S WITA')
 
           for file in output/*.7z; do
             filename=$(basename "$file")
@@ -210,7 +226,7 @@ jobs:
 
             echo "Sending $filename ($filesize) to Telegram..."
 
-            CAPTION="🎮 *${GAME_NAME}* - Build ${VERSION}\n\n📦 *${filename}*\n📊 Size: ${filesize}\n💬 Commit: ${COMMIT_MSG}\n🔗 Build: [View Run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
+            CAPTION="🎮 *${GAME_NAME}* - Build ${VERSION}\n\n📦 *${filename}*\n📊 Size: ${filesize}\n💬 Last Commit: ${LAST_COMMIT_MSG}\n👤 Author: ${LAST_COMMIT_AUTHOR}\n🕐 Timestamp: ${TIMESTAMP}\n🔗 [Workflow Log](${WORKFLOW_URL})"
 
             curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendDocument" \
               -F chat_id="${CHAT_ID}" \
